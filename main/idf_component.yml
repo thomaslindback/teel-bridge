@@ -5,7 +5,6 @@ dependencies:
   espressif/esp_diagnostics: "1.0.2"
   espressif/esp_encrypted_img: "2.1.0"
   espressif/esp_insights: "1.0.1"
-  espressif/secure_cert_mgr: "2.4.1"
   espressif/mdns: "1.2.5"
   espressif/rmaker_common: "1.4.5"
   idf:

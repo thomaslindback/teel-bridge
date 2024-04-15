@@ -20,11 +20,11 @@ set(PROJECT_VER "v1.0")
 set(PROJECT_VER_NUMBER 1)
 
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
-include($ENV{IDF_PATH}/../connectedhomeip/examples/common/cmake/idf_flashing.cmake)
+include($ENV{IDF_PATH}/../connectedhomeip-1.2.0.1/examples/common/cmake/idf_flashing.cmake)
 
 set(EXTRA_COMPONENT_DIRS
-    "$ENV{IDF_PATH}/../connectedhomeip/config/esp32/components"
-    "$ENV{IDF_PATH}/../connectedhomeip/examples/common/QRCode"
+    "$ENV{IDF_PATH}/../connectedhomeip-1.2.0.1/config/esp32/components"
+    "$ENV{IDF_PATH}/../connectedhomeip-1.2.0.1/examples/common/QRCode"
 )
 
 # TODO: add CHIPProjectAppConfig.h to esp32
