@@ -55,6 +55,8 @@ idf_component_register(PRIV_INCLUDE_DIRS
 
 include("${CHIP_ROOT}/build/chip/esp32/esp32_codegen.cmake")
 
+#chip_app_component_codegen("${CHIP_ROOT}/examples/bridge-app/bridge-common/bridge-app.matter")
+#chip_app_component_zapgen("${CHIP_ROOT}/examples/bridge-app/bridge-common/bridge-app.zap")
 chip_app_component_codegen("${CMAKE_SOURCE_DIR}/model/bridge-app.matter")
 chip_app_component_zapgen("${CMAKE_SOURCE_DIR}/model/bridge-app.zap")
 
