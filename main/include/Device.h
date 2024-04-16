@@ -29,8 +29,8 @@ public:
 
     enum State_t
     {
-        kState_On = 0,
-        kState_Off,
+        kState_Open = 0,
+        kState_Closed,
     } State;
 
     enum Changed_t
@@ -43,9 +43,9 @@ public:
 
     Device(const char * szDeviceName, const char * szLocation);
 
-    bool IsOn() const;
+    bool IsOpen() const;
     bool IsReachable() const;
-    void SetOnOff(bool aOn);
+    void SetState(bool open);
     void SetReachable(bool aReachable);
     void SetName(const char * szDeviceName);
     void SetLocation(const char * szLocation);

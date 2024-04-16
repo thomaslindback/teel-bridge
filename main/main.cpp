@@ -60,7 +60,7 @@ chip::DeviceLayer::DeviceInfoProviderImpl gExampleDeviceInfoProvider;
 #endif // CONFIG_ENABLE_ESP32_DEVICE_INFO_PROVIDER
 } // namespace
 
-extern const char TAG[] = "bridge-app";
+extern const char TAG[] = "teel-bridge-app";
 
 using namespace ::chip;
 using namespace ::chip::DeviceManager;
@@ -79,15 +79,14 @@ static EndpointId gFirstDynamicEndpointId;
 static Device * gDevices[CHIP_DEVICE_CONFIG_DYNAMIC_ENDPOINT_COUNT]; // number of dynamic endpoints count
 
 // 4 Bridged devices
-static Device gLight1("Light 1", "Office");
-static Device gLight2("Light 2", "Office");
-static Device gLight3("Light 3", "Kitchen");
-static Device gLight4("Light 4", "Den");
+static Device gDoorSensor1("Sensor 1", "Main door");
+static Device gDoorSensor2("Sensor 2", "Varanda door");
+static Device gDoorSensor3("Sensor 3", "Back door");
 
 // (taken from chip-devices.xml)
 #define DEVICE_TYPE_BRIDGED_NODE 0x0013
 // (taken from lo-devices.xml)
-#define DEVICE_TYPE_LO_ON_OFF_LIGHT 0x0100
+#define DEVICE_TYPE_DOOR_SENSOR 0x0015
 
 // (taken from chip-devices.xml)
 #define DEVICE_TYPE_ROOT_NODE 0x0016
@@ -104,50 +103,36 @@ static Device gLight4("Light 4", "Den");
 */
 
 // Declare On/Off cluster attributes
-DECLARE_DYNAMIC_ATTRIBUTE_LIST_BEGIN(onOffAttrs)
-DECLARE_DYNAMIC_ATTRIBUTE(OnOff::Attributes::OnOff::Id, BOOLEAN, 1, 0), /* on/off */
-    DECLARE_DYNAMIC_ATTRIBUTE_LIST_END();
+DECLARE_DYNAMIC_ATTRIBUTE_LIST_BEGIN(onDoorSensorAttrs)
+    DECLARE_DYNAMIC_ATTRIBUTE(BooleanState::Attributes::StateValue::Id, BOOLEAN, 1, 0),
+DECLARE_DYNAMIC_ATTRIBUTE_LIST_END();
 
 // Declare Descriptor cluster attributes
 DECLARE_DYNAMIC_ATTRIBUTE_LIST_BEGIN(descriptorAttrs)
-DECLARE_DYNAMIC_ATTRIBUTE(Descriptor::Attributes::DeviceTypeList::Id, ARRAY, kDescriptorAttributeArraySize, 0), /* device list */
-    DECLARE_DYNAMIC_ATTRIBUTE(Descriptor::Attributes::ServerList::Id, ARRAY, kDescriptorAttributeArraySize, 0), /* server list */
-    DECLARE_DYNAMIC_ATTRIBUTE(Descriptor::Attributes::ClientList::Id, ARRAY, kDescriptorAttributeArraySize, 0), /* client list */
-    DECLARE_DYNAMIC_ATTRIBUTE(Descriptor::Attributes::PartsList::Id, ARRAY, kDescriptorAttributeArraySize, 0),  /* parts list */
-    DECLARE_DYNAMIC_ATTRIBUTE_LIST_END();
+    DECLARE_DYNAMIC_ATTRIBUTE(Descriptor::Attributes::DeviceTypeList::Id, ARRAY, kDescriptorAttributeArraySize, 0), 
+    DECLARE_DYNAMIC_ATTRIBUTE(Descriptor::Attributes::ServerList::Id, ARRAY, kDescriptorAttributeArraySize, 0),
+    DECLARE_DYNAMIC_ATTRIBUTE(Descriptor::Attributes::ClientList::Id, ARRAY, kDescriptorAttributeArraySize, 0), 
+    DECLARE_DYNAMIC_ATTRIBUTE(Descriptor::Attributes::PartsList::Id, ARRAY, kDescriptorAttributeArraySize, 0), 
+DECLARE_DYNAMIC_ATTRIBUTE_LIST_END();
 
 // Declare Bridged Device Basic Information cluster attributes
 DECLARE_DYNAMIC_ATTRIBUTE_LIST_BEGIN(bridgedDeviceBasicAttrs)
-DECLARE_DYNAMIC_ATTRIBUTE(BridgedDeviceBasicInformation::Attributes::NodeLabel::Id, CHAR_STRING, kNodeLabelSize, 0), /* NodeLabel */
-    DECLARE_DYNAMIC_ATTRIBUTE(BridgedDeviceBasicInformation::Attributes::Reachable::Id, BOOLEAN, 1, 0),              /* Reachable */
-    DECLARE_DYNAMIC_ATTRIBUTE_LIST_END();
+    DECLARE_DYNAMIC_ATTRIBUTE(BridgedDeviceBasicInformation::Attributes::NodeLabel::Id, CHAR_STRING, kNodeLabelSize, 0),
+    DECLARE_DYNAMIC_ATTRIBUTE(BridgedDeviceBasicInformation::Attributes::Reachable::Id, BOOLEAN, 1, 0),              
+DECLARE_DYNAMIC_ATTRIBUTE_LIST_END();
 
-// Declare Cluster List for Bridged Light endpoint
-// TODO: It's not clear whether it would be better to get the command lists from
-// the ZAP config on our last fixed endpoint instead.
-constexpr CommandId onOffIncomingCommands[] = {
-    app::Clusters::OnOff::Commands::Off::Id,
-    app::Clusters::OnOff::Commands::On::Id,
-    app::Clusters::OnOff::Commands::Toggle::Id,
-    app::Clusters::OnOff::Commands::OffWithEffect::Id,
-    app::Clusters::OnOff::Commands::OnWithRecallGlobalScene::Id,
-    app::Clusters::OnOff::Commands::OnWithTimedOff::Id,
-    kInvalidCommandId,
-};
-
-DECLARE_DYNAMIC_CLUSTER_LIST_BEGIN(bridgedLightClusters)
-DECLARE_DYNAMIC_CLUSTER(OnOff::Id, onOffAttrs, ZAP_CLUSTER_MASK(SERVER), onOffIncomingCommands, nullptr),
+DECLARE_DYNAMIC_CLUSTER_LIST_BEGIN(bridgedDoorSensorClusters)
+    DECLARE_DYNAMIC_CLUSTER(BooleanState::Id, onDoorSensorAttrs, ZAP_CLUSTER_MASK(SERVER), nullptr, nullptr),
     DECLARE_DYNAMIC_CLUSTER(Descriptor::Id, descriptorAttrs, ZAP_CLUSTER_MASK(SERVER), nullptr, nullptr),
-    DECLARE_DYNAMIC_CLUSTER(BridgedDeviceBasicInformation::Id, bridgedDeviceBasicAttrs, ZAP_CLUSTER_MASK(SERVER), nullptr,
-                            nullptr) DECLARE_DYNAMIC_CLUSTER_LIST_END;
+    DECLARE_DYNAMIC_CLUSTER(BridgedDeviceBasicInformation::Id, bridgedDeviceBasicAttrs, ZAP_CLUSTER_MASK(SERVER), nullptr, nullptr) 
+DECLARE_DYNAMIC_CLUSTER_LIST_END;
 
 // Declare Bridged Light endpoint
-DECLARE_DYNAMIC_ENDPOINT(bridgedLightEndpoint, bridgedLightClusters);
+DECLARE_DYNAMIC_ENDPOINT(bridgedDoorSensorEndpoint, bridgedDoorSensorClusters);
 
-DataVersion gLight1DataVersions[ArraySize(bridgedLightClusters)];
-DataVersion gLight2DataVersions[ArraySize(bridgedLightClusters)];
-DataVersion gLight3DataVersions[ArraySize(bridgedLightClusters)];
-DataVersion gLight4DataVersions[ArraySize(bridgedLightClusters)];
+DataVersion gDoorSensor1DataVersions[ArraySize(bridgedDoorSensorClusters)];
+DataVersion gDoorSensor2DataVersions[ArraySize(bridgedDoorSensorClusters)];
+DataVersion gDoorSensor3DataVersions[ArraySize(bridgedDoorSensorClusters)];
 
 /* REVISION definitions:
  */
@@ -242,15 +227,15 @@ EmberAfStatus HandleReadBridgedDeviceBasicAttribute(Device * dev, chip::Attribut
     return EMBER_ZCL_STATUS_SUCCESS;
 }
 
-EmberAfStatus HandleReadOnOffAttribute(Device * dev, chip::AttributeId attributeId, uint8_t * buffer, uint16_t maxReadLength)
+EmberAfStatus HandleReadDoorSensorAttribute(Device * dev, chip::AttributeId attributeId, uint8_t * buffer, uint16_t maxReadLength)
 {
     ChipLogProgress(DeviceLayer, "HandleReadOnOffAttribute: attrId=%" PRIu32 ", maxReadLength=%u", attributeId, maxReadLength);
 
-    if ((attributeId == OnOff::Attributes::OnOff::Id) && (maxReadLength == 1))
+    if ((attributeId == BooleanState::Attributes::StateValue::Id) && (maxReadLength == 1))
     {
-        *buffer = dev->IsOn() ? 1 : 0;
+        *buffer = dev->IsOpen() ? 1 : 0;
     }
-    else if ((attributeId == OnOff::Attributes::ClusterRevision::Id) && (maxReadLength == 2))
+    else if ((attributeId == BooleanState::Attributes::ClusterRevision::Id) && (maxReadLength == 2))
     {
         uint16_t rev = ZCL_ON_OFF_CLUSTER_REVISION;
         memcpy(buffer, &rev, sizeof(rev));
@@ -263,12 +248,12 @@ EmberAfStatus HandleReadOnOffAttribute(Device * dev, chip::AttributeId attribute
     return EMBER_ZCL_STATUS_SUCCESS;
 }
 
-EmberAfStatus HandleWriteOnOffAttribute(Device * dev, chip::AttributeId attributeId, uint8_t * buffer)
+EmberAfStatus HandleWriteDoorSensorAttribute(Device * dev, chip::AttributeId attributeId, uint8_t * buffer)
 {
     ChipLogProgress(DeviceLayer, "HandleWriteOnOffAttribute: attrId=%" PRIu32, attributeId);
 
-    ReturnErrorCodeIf((attributeId != OnOff::Attributes::OnOff::Id) || (!dev->IsReachable()), EMBER_ZCL_STATUS_FAILURE);
-    dev->SetOnOff(*buffer == 1);
+    ReturnErrorCodeIf((attributeId != BooleanState::Attributes::StateValue::Id) || (!dev->IsReachable()), EMBER_ZCL_STATUS_FAILURE);
+    dev->SetState(*buffer == 1);
     return EMBER_ZCL_STATUS_SUCCESS;
 }
 
@@ -286,9 +271,9 @@ EmberAfStatus emberAfExternalAttributeReadCallback(EndpointId endpoint, ClusterI
         {
             return HandleReadBridgedDeviceBasicAttribute(dev, attributeMetadata->attributeId, buffer, maxReadLength);
         }
-        else if (clusterId == OnOff::Id)
+        else if (clusterId == BooleanState::Id)
         {
-            return HandleReadOnOffAttribute(dev, attributeMetadata->attributeId, buffer, maxReadLength);
+            return HandleReadDoorSensorAttribute(dev, attributeMetadata->attributeId, buffer, maxReadLength);
         }
     }
 
@@ -306,7 +291,7 @@ EmberAfStatus emberAfExternalAttributeWriteCallback(EndpointId endpoint, Cluster
 
         if ((dev->IsReachable()) && (clusterId == OnOff::Id))
         {
-            return HandleWriteOnOffAttribute(dev, attributeMetadata->attributeId, buffer);
+            return HandleWriteDoorSensorAttribute(dev, attributeMetadata->attributeId, buffer);
         }
     }
 
@@ -337,7 +322,7 @@ void HandleDeviceStatusChanged(Device * dev, Device::Changed_t itemChangedMask)
 
     if (itemChangedMask & Device::kChanged_State)
     {
-        ScheduleReportingCallback(dev, OnOff::Id, OnOff::Attributes::OnOff::Id);
+        ScheduleReportingCallback(dev, BooleanState::Id, BooleanState::Attributes::StateValue::Id);
     }
 
     if (itemChangedMask & Device::kChanged_Name)
@@ -357,7 +342,7 @@ bool emberAfActionsClusterInstantActionCallback(app::CommandHandler * commandObj
 const EmberAfDeviceType gRootDeviceTypes[]          = { { DEVICE_TYPE_ROOT_NODE, DEVICE_VERSION_DEFAULT } };
 const EmberAfDeviceType gAggregateNodeDeviceTypes[] = { { DEVICE_TYPE_BRIDGE, DEVICE_VERSION_DEFAULT } };
 
-const EmberAfDeviceType gBridgedOnOffDeviceTypes[] = { { DEVICE_TYPE_LO_ON_OFF_LIGHT, DEVICE_VERSION_DEFAULT },
+const EmberAfDeviceType gBridgedDoorSensorDeviceTypes[] = { { DEVICE_TYPE_DOOR_SENSOR, DEVICE_VERSION_DEFAULT },
                                                        { DEVICE_TYPE_BRIDGED_NODE, DEVICE_VERSION_DEFAULT } };
 
 static void InitServer(intptr_t context)
@@ -381,23 +366,23 @@ static void InitServer(intptr_t context)
     emberAfSetDeviceTypeList(1, Span<const EmberAfDeviceType>(gAggregateNodeDeviceTypes));
 
     // Add lights 1..3 --> will be mapped to ZCL endpoints 3, 4, 5
-    AddDeviceEndpoint(&gLight1, &bridgedLightEndpoint, Span<const EmberAfDeviceType>(gBridgedOnOffDeviceTypes),
-                      Span<DataVersion>(gLight1DataVersions), 1);
-    AddDeviceEndpoint(&gLight2, &bridgedLightEndpoint, Span<const EmberAfDeviceType>(gBridgedOnOffDeviceTypes),
-                      Span<DataVersion>(gLight2DataVersions), 1);
-    AddDeviceEndpoint(&gLight3, &bridgedLightEndpoint, Span<const EmberAfDeviceType>(gBridgedOnOffDeviceTypes),
-                      Span<DataVersion>(gLight3DataVersions), 1);
+    AddDeviceEndpoint(&gDoorSensor1, &bridgedDoorSensorEndpoint, Span<const EmberAfDeviceType>(gBridgedDoorSensorDeviceTypes),
+                      Span<DataVersion>(gDoorSensor1DataVersions), 1);
+    AddDeviceEndpoint(&gDoorSensor2, &bridgedDoorSensorEndpoint, Span<const EmberAfDeviceType>(gBridgedDoorSensorDeviceTypes),
+                      Span<DataVersion>(gDoorSensor2DataVersions), 1);
+    AddDeviceEndpoint(&gDoorSensor3, &bridgedDoorSensorEndpoint, Span<const EmberAfDeviceType>(gBridgedDoorSensorDeviceTypes),
+                      Span<DataVersion>(gDoorSensor3DataVersions), 1);
 
     // Remove Light 2 -- Lights 1 & 3 will remain mapped to endpoints 3 & 5
-    RemoveDeviceEndpoint(&gLight2);
+    //RemoveDeviceEndpoint(&gLight2);
 
     // Add Light 4 -- > will be mapped to ZCL endpoint 6
-    AddDeviceEndpoint(&gLight4, &bridgedLightEndpoint, Span<const EmberAfDeviceType>(gBridgedOnOffDeviceTypes),
-                      Span<DataVersion>(gLight4DataVersions), 1);
+    //AddDeviceEndpoint(&gLight4, &bridgedLightEndpoint, Span<const EmberAfDeviceType>(gBridgedOnOffDeviceTypes),
+    //                  Span<DataVersion>(gLight4DataVersions), 1);
 
     // Re-add Light 2 -- > will be mapped to ZCL endpoint 7
-    AddDeviceEndpoint(&gLight2, &bridgedLightEndpoint, Span<const EmberAfDeviceType>(gBridgedOnOffDeviceTypes),
-                      Span<DataVersion>(gLight2DataVersions), 1);
+    //AddDeviceEndpoint(&gLight2, &bridgedLightEndpoint, Span<const EmberAfDeviceType>(gBridgedOnOffDeviceTypes),
+    //                  Span<DataVersion>(gLight2DataVersions), 1);
 }
 
 extern "C" void app_main()
@@ -430,16 +415,14 @@ extern "C" void app_main()
     }
 #endif
 
-    gLight1.SetReachable(true);
-    gLight2.SetReachable(true);
-    gLight3.SetReachable(true);
-    gLight4.SetReachable(true);
+    gDoorSensor1.SetReachable(true);
+    gDoorSensor2.SetReachable(true);
+    gDoorSensor3.SetReachable(true);
 
     // Whenever bridged device changes its state
-    gLight1.SetChangeCallback(&HandleDeviceStatusChanged);
-    gLight2.SetChangeCallback(&HandleDeviceStatusChanged);
-    gLight3.SetChangeCallback(&HandleDeviceStatusChanged);
-    gLight4.SetChangeCallback(&HandleDeviceStatusChanged);
+    gDoorSensor1.SetChangeCallback(&HandleDeviceStatusChanged);
+    gDoorSensor2.SetChangeCallback(&HandleDeviceStatusChanged);
+    gDoorSensor3.SetChangeCallback(&HandleDeviceStatusChanged);
 
     DeviceLayer::SetDeviceInfoProvider(&gExampleDeviceInfoProvider);
 

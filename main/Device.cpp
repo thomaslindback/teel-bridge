@@ -27,43 +27,29 @@ Device::Device(const char * szDeviceName, const char * szLocation)
 {
     CopyString(mName, sizeof(mName), szDeviceName);
     CopyString(mLocation, sizeof(mLocation), szLocation);
-    mState      = kState_Off;
+    mState      = kState_Closed;
     mReachable  = false;
     mEndpointId = 0;
     mChanged_CB = nullptr;
 }
 
-bool Device::IsOn() const
+bool Device::IsOpen() const
 {
-    return mState == kState_On;
+    return mState == kState_Open;
+}
+
+void Device::SetState(bool open)
+{
+    if(open) {
+        mState = kState_Open;
+    } else {
+        mState = kState_Closed;
+    }
 }
 
 bool Device::IsReachable() const
 {
     return mReachable;
-}
-
-void Device::SetOnOff(bool aOn)
-{
-    bool changed;
-
-    if (aOn)
-    {
-        changed = (mState != kState_On);
-        mState  = kState_On;
-        ChipLogProgress(DeviceLayer, "Device[%s]: ON", mName);
-    }
-    else
-    {
-        changed = (mState != kState_Off);
-        mState  = kState_Off;
-        ChipLogProgress(DeviceLayer, "Device[%s]: OFF", mName);
-    }
-
-    if (changed && mChanged_CB)
-    {
-        mChanged_CB(this, kChanged_State);
-    }
 }
 
 void Device::SetReachable(bool aReachable)
