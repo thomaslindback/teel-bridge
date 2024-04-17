@@ -137,10 +137,10 @@ DataVersion gDoorSensor3DataVersions[ArraySize(bridgedDoorSensorClusters)];
 /* REVISION definitions:
  */
 
-#define ZCL_DESCRIPTOR_CLUSTER_REVISION (1u)
+#define ZCL_DESCRIPTOR_CLUSTER_REVISION (2u)
 #define ZCL_BRIDGED_DEVICE_BASIC_INFORMATION_CLUSTER_REVISION (2u)
 #define ZCL_FIXED_LABEL_CLUSTER_REVISION (1u)
-#define ZCL_ON_OFF_CLUSTER_REVISION (4u)
+#define ZCL_CONTACT_SENSOR_CLUSTER_REVISION (2u)
 
 int AddDeviceEndpoint(Device * dev, EmberAfEndpointType * ep, const Span<const EmberAfDeviceType> & deviceTypeList,
                       const Span<DataVersion> & dataVersionStorage, chip::EndpointId parentEndpointId)
@@ -221,6 +221,8 @@ EmberAfStatus HandleReadBridgedDeviceBasicAttribute(Device * dev, chip::Attribut
     }
     else
     {
+        ChipLogProgress(DeviceLayer, "--> FAILURE: attrId=%" PRIu32 ", maxReadLength=%u", attributeId,
+                    maxReadLength);
         return EMBER_ZCL_STATUS_FAILURE;
     }
 
@@ -229,7 +231,7 @@ EmberAfStatus HandleReadBridgedDeviceBasicAttribute(Device * dev, chip::Attribut
 
 EmberAfStatus HandleReadDoorSensorAttribute(Device * dev, chip::AttributeId attributeId, uint8_t * buffer, uint16_t maxReadLength)
 {
-    ChipLogProgress(DeviceLayer, "HandleReadOnOffAttribute: attrId=%" PRIu32 ", maxReadLength=%u", attributeId, maxReadLength);
+    ChipLogProgress(DeviceLayer, "HandleReadDoorSensorAttribute: attrId=%" PRIu32 ", maxReadLength=%u", attributeId, maxReadLength);
 
     if ((attributeId == BooleanState::Attributes::StateValue::Id) && (maxReadLength == 1))
     {
@@ -242,6 +244,7 @@ EmberAfStatus HandleReadDoorSensorAttribute(Device * dev, chip::AttributeId attr
     }
     else
     {
+        ChipLogProgress(DeviceLayer, "-->FAILURE: attrId=%" PRIu32 ", maxReadLength=%u", attributeId, maxReadLength);
         return EMBER_ZCL_STATUS_FAILURE;
     }
 
@@ -250,7 +253,7 @@ EmberAfStatus HandleReadDoorSensorAttribute(Device * dev, chip::AttributeId attr
 
 EmberAfStatus HandleWriteDoorSensorAttribute(Device * dev, chip::AttributeId attributeId, uint8_t * buffer)
 {
-    ChipLogProgress(DeviceLayer, "HandleWriteOnOffAttribute: attrId=%" PRIu32, attributeId);
+    ChipLogProgress(DeviceLayer, "HandleWriteDoorSensorAttribute: attrId=%" PRIu32, attributeId);
 
     ReturnErrorCodeIf((attributeId != BooleanState::Attributes::StateValue::Id) || (!dev->IsReachable()), EMBER_ZCL_STATUS_FAILURE);
     dev->SetState(*buffer == 1);
@@ -276,7 +279,7 @@ EmberAfStatus emberAfExternalAttributeReadCallback(EndpointId endpoint, ClusterI
             return HandleReadDoorSensorAttribute(dev, attributeMetadata->attributeId, buffer, maxReadLength);
         }
     }
-
+    ESP_LOGI(TAG, "================ EMBER_ZCL_STATUS_FAILURE");
     return EMBER_ZCL_STATUS_FAILURE;
 }
 
@@ -289,7 +292,7 @@ EmberAfStatus emberAfExternalAttributeWriteCallback(EndpointId endpoint, Cluster
     {
         Device * dev = gDevices[endpointIndex];
 
-        if ((dev->IsReachable()) && (clusterId == OnOff::Id))
+        if ((dev->IsReachable()) && (clusterId == BooleanState::Id))
         {
             return HandleWriteDoorSensorAttribute(dev, attributeMetadata->attributeId, buffer);
         }
